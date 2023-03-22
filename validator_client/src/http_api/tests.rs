@@ -806,6 +806,40 @@ fn validator_enabling() {
 }
 
 #[test]
+fn fyr_fyr() {
+    let runtime = build_runtime();
+    let weak_runtime = Arc::downgrade(&runtime);
+    runtime.block_on(async {
+        let tester = ApiTester::new(weak_runtime)
+            .await
+            .create_web3signer_validators(Web3SignerValidatorScenario {
+                count: 3,
+                enabled: true,
+            })
+            .await
+            .set_validator_enabled(0, false)
+            .await
+            .set_validator_enabled(1, false)
+            .await;
+
+        let resp = &tester
+            .client
+            .get_lighthouse_validators()
+            .await
+            .unwrap()
+            .data;
+
+        // Ensure the server lists all of these newly created validators.
+        for validator in resp {
+            println!("{}", validator.voting_pubkey);
+        }
+
+        //assert_eq!(response.voting_pubkey, keypair.pk.into());
+        //assert_eq!(response.enabled, s.enabled);
+    });
+}
+
+#[test]
 fn validator_gas_limit() {
     let runtime = build_runtime();
     let weak_runtime = Arc::downgrade(&runtime);

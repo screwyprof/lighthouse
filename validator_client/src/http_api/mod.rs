@@ -17,6 +17,7 @@ use eth2::lighthouse_vc::{
 };
 use lighthouse_version::version_with_platform;
 use parking_lot::RwLock;
+use pprof::protos::Message;
 use serde::{Deserialize, Serialize};
 use slog::{crit, info, warn, Logger};
 use slot_clock::SlotClock;
@@ -26,6 +27,7 @@ use std::marker::PhantomData;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 use sysinfo::{System, SystemExt};
 use system_health::observe_system_health_vc;
 use task_executor::TaskExecutor;
@@ -92,6 +94,12 @@ impl Default for Config {
             allow_origin: None,
         }
     }
+}
+
+#[derive(Deserialize)]
+struct DebugParams {
+    seconds: Option<u64>,
+    frequency: Option<i32>,
 }
 
 /// Creates a server that will serve requests using information from `ctx`.
@@ -223,6 +231,43 @@ pub fn serve<T: 'static + SlotClock + Clone, E: EthSpec>(
 
     let app_start = std::time::Instant::now();
     let app_start_filter = warp::any().map(move || app_start);
+
+    async fn dump_cpu_prof(seconds: u64, frequency: i32) -> pprof::Result<pprof::Report> {
+        let guard = pprof::ProfilerGuard::new(frequency)?;
+        tokio::time::sleep(Duration::from_secs(seconds)).await;
+        guard.report().build()
+    }
+
+    async fn profile_cpu_handler(dp: DebugParams) -> Result<impl warp::Reply, warp::Rejection> {
+        let seconds = match dp.seconds {
+            Some(v) => v,
+            None => 10,
+        };
+
+        let frequency = match dp.frequency {
+            Some(v) => v,
+            None => 99,
+        };
+
+        let report = match dump_cpu_prof(seconds, frequency).await {
+            Ok(report) => report,
+            Err(_) => return Err(warp::reject()),
+        };
+
+        match report.pprof() {
+            Ok(profile) => {
+                let mut body = Vec::new();
+                profile.write_to_vec(&mut body).unwrap();
+
+                Ok(Response::builder()
+                    .header("Content-Type", "application/protobuf")
+                    .body(body))
+            }
+            Err(_) => Err(warp_utils::reject::custom_bad_request(
+                "cannot encode profile body".to_string(),
+            )),
+        }
+    }
 
     // GET lighthouse/version
     let get_node_version = warp::path("lighthouse")
@@ -975,6 +1020,9 @@ pub fn serve<T: 'static + SlotClock + Clone, E: EthSpec>(
             })
         });
 
+    let profile_cpu =
+        warp::path!("debug" / "pprof" / "profile").and(warp::query().and_then(profile_cpu_handler));
+
     let routes = warp::any()
         .and(authorization_header_filter)
         // Note: it is critical that the `authorization_header_filter` is applied to all routes.
@@ -1014,6 +1062,8 @@ pub fn serve<T: 'static + SlotClock + Clone, E: EthSpec>(
                         .or(delete_std_remotekeys),
                 )),
         )
+        // pprof
+        .or(profile_cpu)
         // The auth route is the only route that is allowed to be accessed without the API token.
         .or(warp::get().and(get_auth))
         // Maps errors into HTTP responses.

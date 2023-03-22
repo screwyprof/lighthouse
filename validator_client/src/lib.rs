@@ -771,3 +771,22 @@ pub fn determine_graffiti(
         .or(validator_definition_graffiti)
         .or(graffiti_flag)
 }
+
+pub struct Elapsed<'a, 'b>(&'a Logger, &'b str, std::time::Instant);
+
+impl<'a, 'b> Drop for Elapsed<'a, 'b> {
+    fn drop(&mut self) {
+        warn!(
+            self.0,
+            "operation {} took {} ms", self.1, self.2.elapsed().as_millis();
+        );
+    }
+}
+
+impl<'a, 'b> Elapsed<'a, 'b> {
+    pub fn start(log: &'a Logger, op: &'b str) -> Elapsed<'a, 'b> {
+        let now = std::time::Instant::now();
+
+        Elapsed(log, op, now)
+    }
+}

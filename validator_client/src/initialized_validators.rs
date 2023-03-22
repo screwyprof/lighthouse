@@ -31,8 +31,8 @@ use types::{Address, Graffiti, Keypair, PublicKey, PublicKeyBytes};
 use url::{ParseError, Url};
 use validator_dir::Builder as ValidatorDirBuilder;
 
-use crate::key_cache;
 use crate::key_cache::KeyCache;
+use crate::{key_cache, Elapsed};
 
 /// Default timeout for a request to a remote signer for a signature.
 ///
@@ -692,12 +692,29 @@ impl InitializedValidators {
         gas_limit: Option<u64>,
         builder_proposals: Option<bool>,
     ) -> Result<(), Error> {
+        let logger = self.log.clone();
+        let _elapsed = Elapsed::start(&logger, "set_validator_definition_fields");
+
+        warn!(
+            self.log,
+            "setting definition fields";
+            "pubkey" => format!("{:?}", voting_public_key),
+            "enabled" => enabled,
+            "builder_proposals" => builder_proposals,
+        );
+
         if let Some(def) = self
             .definitions
             .as_mut_slice()
             .iter_mut()
             .find(|def| def.voting_public_key == *voting_public_key)
         {
+            warn!(
+                self.log,
+                "found definition";
+                "pubkey" => format!("{:?}", voting_public_key),
+            );
+
             // Don't overwrite fields if they are not set in this request.
             if let Some(enabled) = enabled {
                 def.enabled = enabled;
@@ -716,6 +733,12 @@ impl InitializedValidators {
             .validators
             .get_mut(&PublicKeyBytes::from(voting_public_key))
         {
+            warn!(
+                self.log,
+                "validator initialised";
+                "pubkey" => format!("{:?}", voting_public_key),
+            );
+
             // Don't overwrite fields if they are not set in this request.
             if let Some(gas_limit) = gas_limit {
                 val.gas_limit = Some(gas_limit);
@@ -893,6 +916,8 @@ impl InitializedValidators {
         mut cache: KeyCache,
         key_stores: &mut HashMap<PathBuf, Keystore>,
     ) -> Result<KeyCache, Error> {
+        let _elapsed = Elapsed::start(&self.log, "decrypt_key_cache");
+
         // Read relevant key stores from the filesystem.
         let mut definitions_map = HashMap::new();
         for def in self.definitions.as_slice().iter().filter(|def| def.enabled) {
@@ -978,6 +1003,7 @@ impl InitializedValidators {
     /// I.e., if there are two different definitions with the same public key then the second will
     /// be ignored.
     pub(crate) async fn update_validators(&mut self) -> Result<(), Error> {
+        let _elapsed = Elapsed::start(&self.log, "update_validators");
         //use key cache if available
         let mut key_stores = HashMap::new();
 
@@ -989,22 +1015,62 @@ impl InitializedValidators {
 
         let cache =
             KeyCache::open_or_create(&self.validators_dir).map_err(Error::UnableToOpenKeyCache)?;
-        let mut key_cache = self.decrypt_key_cache(cache, &mut key_stores).await?;
+
+        // Check if there is at least one local definition.
+        let has_local_definitions = self.definitions.as_slice().iter().any(|def| {
+            matches!(
+                def.signing_definition,
+                SigningDefinition::LocalKeystore { .. }
+            )
+        });
+
+        let mut key_cache;
+
+        // Only decrypt cache when there is at least one local definition.
+        // Decrypting cache is a very expensive operation which is never used for web3signer.
+        if has_local_definitions {
+            key_cache = self.decrypt_key_cache(cache, &mut key_stores).await?;
+        } else {
+            // Assign an empty KeyCache if all definitions are of the Web3Signer type.
+            key_cache = KeyCache::new();
+        }
 
         let mut disabled_uuids = HashSet::new();
         for def in self.definitions.as_slice() {
             if def.enabled {
+                warn!(
+                    self.log,
+                    "definition is enabled";
+                    "pubkey" => format!("{:?}", def.voting_public_key),
+                );
+
                 let pubkey_bytes = def.voting_public_key.compress();
 
                 if self.validators.contains_key(&pubkey_bytes) {
+                    warn!(
+                        self.log,
+                        "validator is found in cache";
+                        "pubkey" => format!("{:?}", def.voting_public_key),
+                    );
                     continue;
                 }
+
+                warn!(
+                        self.log,
+                        "validator is not found in cache";
+                        "pubkey" => format!("{:?}", def.voting_public_key),
+                );
 
                 match &def.signing_definition {
                     SigningDefinition::LocalKeystore {
                         voting_keystore_path,
                         ..
                     } => {
+                        warn!(
+                            self.log,
+                            "detected signing definition";
+                            "pubkey" => format!("{:?}", def.voting_public_key),
+                        );
                         if let Some(key_store) = key_stores.get(voting_keystore_path) {
                             disabled_uuids.remove(key_store.uuid());
                         }
@@ -1059,6 +1125,11 @@ impl InitializedValidators {
                         }
                     }
                     SigningDefinition::Web3Signer(Web3SignerDefinition { .. }) => {
+                        warn!(
+                            self.log,
+                            "detected web3signer definition";
+                            "pubkey" => format!("{:?}", def.voting_public_key),
+                        );
                         match InitializedValidator::from_definition(
                             def.clone(),
                             &mut key_cache,
@@ -1070,6 +1141,12 @@ impl InitializedValidators {
                             Ok(init) => {
                                 self.validators
                                     .insert(init.voting_public_key().compress(), init);
+
+                                warn!(
+                                    self.log,
+                                    "in-memory cache updated";
+                                    "pubkey" => format!("{:?}", def.voting_public_key),
+                                );
 
                                 info!(
                                     self.log,
@@ -1094,7 +1171,20 @@ impl InitializedValidators {
                     }
                 }
             } else {
+                warn!(
+                    self.log,
+                    "definition is disabled";
+                    "pubkey" => format!("{:?}", def.voting_public_key),
+                );
+
                 self.validators.remove(&def.voting_public_key.compress());
+
+                warn!(
+                    self.log,
+                    "definition removed form in-memory cache";
+                    "pubkey" => format!("{:?}", def.voting_public_key),
+                );
+
                 match &def.signing_definition {
                     SigningDefinition::LocalKeystore {
                         voting_keystore_path,
@@ -1116,13 +1206,17 @@ impl InitializedValidators {
             }
         }
         for uuid in disabled_uuids {
-            key_cache.remove(&uuid);
+            if has_local_definitions {
+                key_cache.remove(&uuid);
+            }
         }
 
         let validators_dir = self.validators_dir.clone();
         let log = self.log.clone();
-        if key_cache.is_modified() {
+        if has_local_definitions && key_cache.is_modified() {
             tokio::task::spawn_blocking(move || {
+                let now = std::time::Instant::now();
+
                 match key_cache.save(validators_dir) {
                     Err(e) => warn!(
                         log,
@@ -1132,11 +1226,16 @@ impl InitializedValidators {
                     Ok(true) => info!(log, "Modified key_cache saved successfully"),
                     _ => {}
                 };
+
+                warn!(
+                    log,
+                    "saving cache took {} ms", now.elapsed().as_millis();
+                );
             })
             .await
             .map_err(Error::TokioJoin)?;
         } else {
-            debug!(log, "Key cache not modified");
+            warn!(log, "Key cache not modified");
         }
 
         // Update the enabled and total validator counts
