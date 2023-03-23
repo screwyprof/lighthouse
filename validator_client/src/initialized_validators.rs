@@ -998,11 +998,9 @@ impl InitializedValidators {
             )
         });
 
-        let mut key_cache;
-
         // Only decrypt cache when there is at least one local definition.
         // Decrypting cache is a very expensive operation which is never used for web3signer.
-        let key_cache = if has_local_definitions {
+        let mut key_cache = if has_local_definitions {
             self.decrypt_key_cache(cache, &mut key_stores).await?
         } else {
             // Assign an empty KeyCache if all definitions are of the Web3Signer type.
