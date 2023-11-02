@@ -19,62 +19,62 @@ jobs:
     outputs:
       VERSION: ${{ env.VERSION }}
 
-#  build-docker-single-arch:
-#    name: build-docker-${{ matrix.binary }}${{ matrix.features.version_suffix }}
-#    runs-on: ubuntu-22.04
-#    strategy:
-#      matrix:
-#        binary: [aarch64, x86_64]
-#        features: [
-#          {version_suffix: "", env: "gnosis,slasher-lmdb,slasher-mdbx,jemalloc"},
-#          {version_suffix: "-dev", env: "jemalloc,spec-minimal"}
-#        ]
-#        include:
-#          - profile: maxperf
-#
-#    needs: [extract-version]
-#    env:
-#      VERSION: ${{ needs.extract-version.outputs.VERSION }}
-#    steps:
-#      - uses: actions/checkout@v3
-#      - name: Update Rust
-#        run: rustup update stable
-#      - name: Dockerhub login
-#        run: |
-#          echo "${DOCKER_PASSWORD}" | docker login --username ${DOCKER_USERNAME} --password-stdin
-#      - name: Cross build Lighthouse binary
-#        run: |
-#          cargo install cross
-#          make build-${{ matrix.binary }}
-#      - name: Make bin dir
-#        run: mkdir ./bin
-#      - name: Move cross-built binary into Docker scope (if ARM)
-#        if: startsWith(matrix.binary, 'aarch64')
-#        run: mv ./target/aarch64-unknown-linux-gnu/${{ matrix.profile }}/lighthouse ./bin
-#      - name: Move cross-built binary into Docker scope (if x86_64)
-#        if: startsWith(matrix.binary, 'x86_64')
-#        run: mv ./target/x86_64-unknown-linux-gnu/${{ matrix.profile }}/lighthouse ./bin
-#      - name: Map aarch64 to arm64 short arch
-#        if: startsWith(matrix.binary, 'aarch64')
-#        run: echo "SHORT_ARCH=arm64" >> $GITHUB_ENV
-#      - name: Map x86_64 to amd64 short arch
-#        if: startsWith(matrix.binary, 'x86_64')
-#        run: echo "SHORT_ARCH=amd64" >> $GITHUB_ENV;
-#      - name: Set modernity suffix
-#        if: endsWith(matrix.binary, '-portable') != true
-#        run: echo "MODERNITY_SUFFIX=-modern" >> $GITHUB_ENV;
-#      - name: Install QEMU
-#        run: sudo apt-get update && sudo apt-get install -y qemu-user-static
-#      - name: Set up Docker Buildx
-#        uses: docker/setup-buildx-action@v2
-#      - name: Build and push
-#        uses: docker/build-push-action@v4
-#        with:
-#          file: ./Dockerfile.cross
-#          context: .
-#          platforms: linux/${{ env.SHORT_ARCH }}
-#          push: true
-#          tags: ${{ env.IMAGE_NAME }}:${{ env.VERSION }}-${{ env.SHORT_ARCH }}${{ env.MODERNITY_SUFFIX }}${{ env.FEATURE_SUFFIX }}-${{ matrix.binary }}
+  build-docker-single-arch:
+    name: build-docker-${{ matrix.binary }}${{ matrix.features.version_suffix }}
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        binary: [aarch64, x86_64]
+        features: [
+          {version_suffix: "", env: "gnosis,slasher-lmdb,slasher-mdbx,jemalloc"},
+          {version_suffix: "-dev", env: "jemalloc,spec-minimal"}
+        ]
+        include:
+          - profile: maxperf
+
+    needs: [extract-version]
+    env:
+      VERSION: ${{ needs.extract-version.outputs.VERSION }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Update Rust
+        run: rustup update stable
+      - name: Dockerhub login
+        run: |
+          echo "${DOCKER_PASSWORD}" | docker login --username ${DOCKER_USERNAME} --password-stdin
+      - name: Cross build Lighthouse binary
+        run: |
+          cargo install cross
+          make build-${{ matrix.binary }}
+      - name: Make bin dir
+        run: mkdir ./bin
+      - name: Move cross-built binary into Docker scope (if ARM)
+        if: startsWith(matrix.binary, 'aarch64')
+        run: mv ./target/aarch64-unknown-linux-gnu/${{ matrix.profile }}/lighthouse ./bin
+      - name: Move cross-built binary into Docker scope (if x86_64)
+        if: startsWith(matrix.binary, 'x86_64')
+        run: mv ./target/x86_64-unknown-linux-gnu/${{ matrix.profile }}/lighthouse ./bin
+      - name: Map aarch64 to arm64 short arch
+        if: startsWith(matrix.binary, 'aarch64')
+        run: echo "SHORT_ARCH=arm64" >> $GITHUB_ENV
+      - name: Map x86_64 to amd64 short arch
+        if: startsWith(matrix.binary, 'x86_64')
+        run: echo "SHORT_ARCH=amd64" >> $GITHUB_ENV;
+      - name: Set modernity suffix
+        if: endsWith(matrix.binary, '-portable') != true
+        run: echo "MODERNITY_SUFFIX=-modern" >> $GITHUB_ENV;
+      - name: Install QEMU
+        run: sudo apt-get update && sudo apt-get install -y qemu-user-static
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Build and push
+        uses: docker/build-push-action@v4
+        with:
+          file: ./Dockerfile.cross
+          context: .
+          platforms: linux/${{ env.SHORT_ARCH }}
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:${{ env.VERSION }}-${{ env.SHORT_ARCH }}${{ env.MODERNITY_SUFFIX }}${{ env.FEATURE_SUFFIX }}-${{ matrix.binary }}
 
   build-docker-multiarch:
     name: build-docker-multiarch${{ matrix.modernity }}
