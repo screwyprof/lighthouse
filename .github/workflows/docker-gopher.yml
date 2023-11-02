@@ -34,8 +34,8 @@ jobs:
       matrix:
         binary: [aarch64, x86_64]
         features: [
-          {version_suffix: "", env: "gnosis,slasher-lmdb,slasher-mdbx,jemalloc"},
-          {version_suffix: "-dev", env: "jemalloc,spec-minimal"}
+          {version_suffix: "", env: "gnosis,slasher-lmdb,slasher-mdbx"},
+          {version_suffix: "-dev", env: "spec-minimal"}
         ]
         include:
           - profile: maxperf
