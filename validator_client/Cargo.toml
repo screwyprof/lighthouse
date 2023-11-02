@@ -62,3 +62,4 @@ malloc_utils = { path = "../common/malloc_utils" }
 sysinfo = "0.26.5"
 system_health = { path = "../common/system_health" }
 logging = { path = "../common/logging" }
+pprof = { version = "0.13.0", features = ["protobuf-codec", "flamegraph"] }
