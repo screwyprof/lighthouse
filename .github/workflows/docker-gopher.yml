@@ -1,0 +1,90 @@
+name: docker
+
+on:
+  push:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  IMAGE_NAME: happygopher/lighthouse
+  LCLI_IMAGE_NAME: happygopher/lcli
+
+jobs:
+  extract-version:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Extract version (if stable)
+        if: github.event.ref == 'refs/heads/stable'
+        run: |
+          echo "VERSION=latest" >> $GITHUB_ENV
+          echo "VERSION_SUFFIX=" >> $GITHUB_ENV
+      - name: Extract version (if unstable)
+        if: github.event.ref == 'refs/heads/unstable'
+        run: |
+          echo "VERSION=latest" >> $GITHUB_ENV
+          echo "VERSION_SUFFIX=-unstable" >> $GITHUB_ENV
+      - name: Extract version (if tagged release)
+        if: startsWith(github.event.ref, 'refs/tags')
+        run: |
+          echo "VERSION=$(echo ${GITHUB_REF#refs/tags/})" >> $GITHUB_ENV
+          echo "VERSION_SUFFIX=" >> $GITHUB_ENV
+    outputs:
+      VERSION: ${{ env.VERSION }}
+      VERSION_SUFFIX: ${{ env.VERSION_SUFFIX }}
+
+  build-docker-multi-arch-modern:
+    runs-on: ubuntu-22.04
+    needs: [extract-version]
+    env:
+      DOCKER_CLI_EXPERIMENTAL: enabled
+      VERSION: ${{ needs.extract-version.outputs.VERSION }}
+      VERSION_SUFFIX: ${{ needs.extract-version.outputs.VERSION_SUFFIX }}
+      MODERNITY_SUFFIX: -modern
+    steps:
+      - uses: actions/checkout@v3
+      - name: Dockerhub login
+        run: |
+          echo "${DOCKER_PASSWORD}" | docker login --username ${DOCKER_USERNAME} --password-stdin
+      - name: Setup multi-arch Docker builder
+        run: |
+          docker run --privileged --rm tonistiigi/binfmt --install all
+          docker buildx create --use --name cross-builder
+      - name: Cross build Lighthouse binary for arm64 and x86_64
+        run: |
+          cargo install cross
+          env CROSS_PROFILE=maxperf make build-multi
+      - name: Move cross-built binaries into Docker scope
+        run: |
+          mkdir ./bin;
+          mv ./target/x86_64-unknown-linux-gnu/maxperf/lighthouse ./bin/x86_64;
+          mv ./target/aarch64-unknown-linux-gnu/maxperf/lighthouse ./bin/arm64;
+      - name: Build Dockerfile and push
+        run: |
+          docker buildx build \
+              --platform=linux/amd64,linux/arm64 \
+              --file ./Dockerfile.cross . \
+              --tag ${IMAGE_NAME}:${VERSION}${VERSION_SUFFIX}${MODERNITY_SUFFIX} \
+              --push
+
+#  build-docker-lcli:
+#    runs-on: ubuntu-22.04
+#    needs: [extract-version]
+#    env:
+#      VERSION: ${{ needs.extract-version.outputs.VERSION }}
+#      VERSION_SUFFIX: ${{ needs.extract-version.outputs.VERSION_SUFFIX }}
+#    steps:
+#      - uses: actions/checkout@v3
+#      - name: Dockerhub login
+#        run: |
+#          echo "${DOCKER_PASSWORD}" | docker login --username ${DOCKER_USERNAME} --password-stdin
+#      - name: Build lcli dockerfile (with push)
+#        run: |
+#          docker build \
+#              --build-arg PORTABLE=true \
+#              --tag ${LCLI_IMAGE_NAME}:${VERSION}${VERSION_SUFFIX} \
+#              --file ./lcli/Dockerfile .
+#          docker push ${LCLI_IMAGE_NAME}:${VERSION}${VERSION_SUFFIX}
