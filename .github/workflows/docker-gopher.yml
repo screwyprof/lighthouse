@@ -20,7 +20,6 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Extract version (if tagged release)
-        if: startsWith(github.event.ref, 'refs/tags')
         run: |
           echo "VERSION=$(echo ${GITHUB_REF#refs/heads/})-$(echo ${GITHUB_SHA::8})" >> $GITHUB_ENV
           echo "VERSION_SUFFIX=" >> $GITHUB_ENV
@@ -32,7 +31,10 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        binary: [aarch64, x86_64]
+        binary: [aarch64,
+                 aarch64-portable,
+                 x86_64,
+                 x86_64-portable]
         features: [
           {version_suffix: "", env: "gnosis,slasher-lmdb,slasher-mdbx"},
           {version_suffix: "-dev", env: "spec-minimal"}
