@@ -21,8 +21,8 @@ jobs:
     steps:
       - name: Extract version (if tagged release)
         run: |
-          echo "VERSION=$(echo ${GITHUB_REF#refs/heads/})-$(echo ${GITHUB_SHA::8})" >> $GITHUB_ENV
-          echo "VERSION_SUFFIX=" >> $GITHUB_ENV
+            VERSION=$(echo "${GITHUB_REF#refs/heads/}" | sed 's/\//-/g')-$(echo "${GITHUB_SHA::6}")
+            echo "VERSION_SUFFIX=" >> $GITHUB_ENV
     outputs:
       VERSION: ${{ env.VERSION }}
       VERSION_SUFFIX: ${{ env.VERSION_SUFFIX }}
