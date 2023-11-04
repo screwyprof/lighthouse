@@ -100,7 +100,7 @@ lto = "fat"
 codegen-units = 1
 incremental = false
 
-[profile.release]
-debug = true
-incremental = true
-codegen-units = 8
+#[profile.release]
+#debug = true
+#incremental = true
+#codegen-units = 8
