@@ -32,7 +32,7 @@ RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-reco
   libssl-dev \
   ca-certificates \
   gdb \
-  heapstack \
+  heaptrack \
   curl \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
