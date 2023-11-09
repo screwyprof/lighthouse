@@ -22,6 +22,7 @@ ENV FEATURES $FEATURES
 ENV PROFILE $PROFILE
 # Set the CARGO_NET_GIT_FETCH_WITH_CLI environment variable and enable sparse-registry
 ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 #ENV CARGO_UNSTABLE_SPARSE_REGISTRY=true
 #ENV RUSTFLAGS="-Z sparse-registry"
 RUN cd lighthouse && make
