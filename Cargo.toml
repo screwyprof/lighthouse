@@ -99,5 +99,3 @@ inherits = "release"
 lto = "fat"
 codegen-units = 1
 incremental = false
-debug = true
-strip = "none"
