@@ -1150,7 +1150,7 @@ impl InitializedValidators {
 
                                 self.validators
                                     .insert(init.voting_public_key().compress(), init);
-                                info!(
+                                debug!(
                                     self.log,
                                     "Enabled validator";
                                     "signing_method" => "local_keystore",
@@ -1200,13 +1200,7 @@ impl InitializedValidators {
                                 self.validators
                                     .insert(init.voting_public_key().compress(), init);
 
-                                warn!(
-                                    self.log,
-                                    "in-memory cache updated";
-                                    "pubkey" => format!("{:?}", def.voting_public_key),
-                                );
-
-                                info!(
+                                debug!(
                                     self.log,
                                     "Enabled validator";
                                     "signing_method" => "remote_signer",
@@ -1244,7 +1238,7 @@ impl InitializedValidators {
                     SigningDefinition::Web3Signer { .. } => (),
                 }
 
-                info!(
+                debug!(
                     self.log,
                     "Disabled validator";
                     "voting_pubkey" => format!("{:?}", def.voting_public_key)
