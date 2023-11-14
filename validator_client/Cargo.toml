@@ -61,4 +61,4 @@ malloc_utils = { workspace = true }
 sysinfo = { workspace = true }
 system_health = { path = "../common/system_health" }
 logging = { workspace = true }
-pprof = { version = "0.13.0", features = ["protobuf-codec", "flamegraph"]
+pprof = { version = "0.13.0", features = ["protobuf-codec", "flamegraph"] }

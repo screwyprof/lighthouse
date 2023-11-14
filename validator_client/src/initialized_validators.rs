@@ -793,12 +793,6 @@ impl InitializedValidators {
             .iter_mut()
             .find(|def| def.voting_public_key == *voting_public_key)
         {
-            warn!(
-                self.log,
-                "found definition";
-                "pubkey" => format!("{:?}", voting_public_key),
-            );
-
             // Don't overwrite fields if they are not set in this request.
             if let Some(enabled) = enabled {
                 def.enabled = enabled;
@@ -820,12 +814,6 @@ impl InitializedValidators {
             .validators
             .get_mut(&PublicKeyBytes::from(voting_public_key))
         {
-            warn!(
-                self.log,
-                "validator initialised";
-                "pubkey" => format!("{:?}", voting_public_key),
-            );
-
             // Don't overwrite fields if they are not set in this request.
             if let Some(gas_limit) = gas_limit {
                 val.gas_limit = Some(gas_limit);
@@ -1130,39 +1118,17 @@ impl InitializedValidators {
         let mut disabled_uuids = HashSet::new();
         for def in self.definitions.as_slice() {
             if def.enabled {
-                warn!(
-                    self.log,
-                    "definition is enabled";
-                    "pubkey" => format!("{:?}", def.voting_public_key),
-                );
-
                 let pubkey_bytes = def.voting_public_key.compress();
 
                 if self.validators.contains_key(&pubkey_bytes) {
-                    warn!(
-                        self.log,
-                        "validator is found in cache";
-                        "pubkey" => format!("{:?}", def.voting_public_key),
-                    );
                     continue;
                 }
-
-                warn!(
-                        self.log,
-                        "validator is not found in cache";
-                        "pubkey" => format!("{:?}", def.voting_public_key),
-                );
 
                 match &def.signing_definition {
                     SigningDefinition::LocalKeystore {
                         voting_keystore_path,
                         ..
                     } => {
-                        warn!(
-                            self.log,
-                            "detected signing definition";
-                            "pubkey" => format!("{:?}", def.voting_public_key),
-                        );
                         if let Some(key_store) = key_stores.get(voting_keystore_path) {
                             disabled_uuids.remove(key_store.uuid());
                         }
@@ -1263,19 +1229,7 @@ impl InitializedValidators {
                     }
                 }
             } else {
-                warn!(
-                    self.log,
-                    "definition is disabled";
-                    "pubkey" => format!("{:?}", def.voting_public_key),
-                );
-
                 self.validators.remove(&def.voting_public_key.compress());
-
-                warn!(
-                    self.log,
-                    "definition removed form in-memory cache";
-                    "pubkey" => format!("{:?}", def.voting_public_key),
-                );
 
                 match &def.signing_definition {
                     SigningDefinition::LocalKeystore {
