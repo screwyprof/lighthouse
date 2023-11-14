@@ -34,7 +34,6 @@ use validator_dir::Builder as ValidatorDirBuilder;
 
 use crate::key_cache;
 use crate::key_cache::KeyCache;
-use crate::{Elapsed};
 
 /// Default timeout for a request to a remote signer for a signature.
 ///
@@ -777,7 +776,6 @@ impl InitializedValidators {
         graffiti: Option<GraffitiString>,
     ) -> Result<(), Error> {
         let logger = self.log.clone();
-        let _elapsed = Elapsed::start(&logger, "set_validator_definition_fields");
 
         if let Some(def) = self
             .definitions
@@ -987,8 +985,6 @@ impl InitializedValidators {
         key_stores: &mut HashMap<PathBuf, Keystore>,
         on_failure: OnDecryptFailure,
     ) -> Result<KeyCache, Error> {
-        let _elapsed = Elapsed::start(&self.log, "decrypt_key_cache");
-
         // Read relevant key stores from the filesystem.
         let mut definitions_map = HashMap::new();
         for def in self.definitions.as_slice().iter().filter(|def| def.enabled) {
@@ -1076,7 +1072,6 @@ impl InitializedValidators {
     /// I.e., if there are two different definitions with the same public key then the second will
     /// be ignored.
     pub(crate) async fn update_validators(&mut self) -> Result<(), Error> {
-        let _elapsed = Elapsed::start(&self.log, "update_validators");
         //use key cache if available
         let mut key_stores = HashMap::new();
 
@@ -1142,12 +1137,6 @@ impl InitializedValidators {
 
                                 self.validators
                                     .insert(init.voting_public_key().compress(), init);
-                                debug!(
-                                    self.log,
-                                    "Enabled validator";
-                                    "signing_method" => "local_keystore",
-                                    "voting_pubkey" => format!("{:?}", def.voting_public_key),
-                                );
 
                                 if let Some(lockfile_path) = existing_lockfile_path {
                                     warn!(
@@ -1186,13 +1175,6 @@ impl InitializedValidators {
                             Ok(init) => {
                                 self.validators
                                     .insert(init.voting_public_key().compress(), init);
-
-                                debug!(
-                                    self.log,
-                                    "Enabled validator";
-                                    "signing_method" => "remote_signer",
-                                    "voting_pubkey" => format!("{:?}", def.voting_public_key),
-                                );
                             }
                             Err(e) => {
                                 error!(
@@ -1224,12 +1206,6 @@ impl InitializedValidators {
                     // Remote signers do not interact with the key cache.
                     SigningDefinition::Web3Signer { .. } => (),
                 }
-
-                debug!(
-                    self.log,
-                    "Disabled validator";
-                    "voting_pubkey" => format!("{:?}", def.voting_public_key)
-                );
             }
         }
 
@@ -1254,16 +1230,9 @@ impl InitializedValidators {
                     Ok(true) => info!(log, "Modified key_cache saved successfully"),
                     _ => {}
                 };
-
-                debug!(
-                    log,
-                    "saving cache took {} ms", now.elapsed().as_millis();
-                );
             })
             .await
             .map_err(Error::TokioJoin)?;
-        } else {
-            debug!(log, "Key cache not modified");
         }
 
         // Update the enabled and total validator counts
