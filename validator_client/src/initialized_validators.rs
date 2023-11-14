@@ -779,14 +779,6 @@ impl InitializedValidators {
         let logger = self.log.clone();
         let _elapsed = Elapsed::start(&logger, "set_validator_definition_fields");
 
-        warn!(
-            self.log,
-            "setting definition fields";
-            "pubkey" => format!("{:?}", voting_public_key),
-            "enabled" => enabled,
-            "builder_proposals" => builder_proposals,
-        );
-
         if let Some(def) = self
             .definitions
             .as_mut_slice()
@@ -1183,11 +1175,6 @@ impl InitializedValidators {
                         }
                     }
                     SigningDefinition::Web3Signer(Web3SignerDefinition { .. }) => {
-                        warn!(
-                            self.log,
-                            "detected web3signer definition";
-                            "pubkey" => format!("{:?}", def.voting_public_key),
-                        );
                         match InitializedValidator::from_definition(
                             def.clone(),
                             &mut key_cache,
@@ -1268,7 +1255,7 @@ impl InitializedValidators {
                     _ => {}
                 };
 
-                warn!(
+                debug!(
                     log,
                     "saving cache took {} ms", now.elapsed().as_millis();
                 );
